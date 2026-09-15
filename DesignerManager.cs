@@ -13,14 +13,14 @@ namespace AvalonMCP
 {
     public class DesignerManager : IDisposable
     {
-        private string _assemblyPath;
-        private string _executablePath;
-        private Process _process;
-        private IAvaloniaRemoteTransportConnection _connection;
-        private IDisposable _listener;
+        private string? _assemblyPath;
+        private string? _executablePath;
+        private Process? _process;
+        private IAvaloniaRemoteTransportConnection? _connection;
+        private IDisposable? _listener;
 
-        public event Action<byte[], int, int, int> OnFrameReceived;
-        public event Action<string> OnError;
+        public event Action<byte[], int, int, int>? OnFrameReceived;
+        public event Action<string>? OnError;
 
         public async Task StartAsync(string executablePath, string hostAppPath)
         {
@@ -41,12 +41,12 @@ namespace AvalonMCP
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error initializing connection: {ex.Message}");
+                        Console.Error.WriteLine($"Error initializing connection: {ex.Message}");
                         tcs.TrySetException(ex);
                     }
                 });
 
-            var executableDir = Path.GetDirectoryName(_executablePath);
+            var executableDir = Path.GetDirectoryName(_executablePath) ?? throw new InvalidOperationException("Executable directory was not found.");
             var targetName = Path.GetFileNameWithoutExtension(_executablePath);
             var runtimeConfigPath = Path.Combine(executableDir, targetName + ".runtimeconfig.json");
             var depsPath = Path.Combine(executableDir, targetName + ".deps.json");
@@ -63,13 +63,13 @@ namespace AvalonMCP
                 UseShellExecute = false,
             };
 
-            Console.WriteLine($"Starting previewer process: dotnet {args}");
+            Console.Error.WriteLine($"Starting previewer process: dotnet {args}");
 
-            _process = Process.Start(processInfo);
+            _process = Process.Start(processInfo) ?? throw new InvalidOperationException("Failed to start Avalonia Designer Host.");
             _process.EnableRaisingEvents = true;
-            _process.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.WriteLine($"[Host] {e.Data}"); };
-            _process.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.WriteLine($"[Host ERROR] {e.Data}"); };
-            _process.Exited += (s, e) => Console.WriteLine("Previewer process exited.");
+            _process.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Error.WriteLine($"[Host] {e.Data}"); };
+            _process.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Error.WriteLine($"[Host ERROR] {e.Data}"); };
+            _process.Exited += (s, e) => Console.Error.WriteLine("Previewer process exited.");
             _process.BeginErrorReadLine();
             _process.BeginOutputReadLine();
 
@@ -79,7 +79,7 @@ namespace AvalonMCP
         private async Task ConnectionInitializedAsync(IAvaloniaRemoteTransportConnection connection)
         {
             _connection = connection;
-            _connection.OnException += (c, ex) => Console.WriteLine($"Connection error: {ex.Message}");
+            _connection.OnException += (c, ex) => Console.Error.WriteLine($"Connection error: {ex.Message}");
             _connection.OnMessage += (c, msg) => OnMessageAsync(msg).GetAwaiter().GetResult();
 
             await SendAsync(new ClientSupportedPixelFormatsMessage
@@ -104,7 +104,7 @@ namespace AvalonMCP
             {
                 await SendAsync(new UpdateXamlMessage
                 {
-                    AssemblyPath = _assemblyPath,
+                    AssemblyPath = _assemblyPath!,
                     Xaml = xaml,
                 });
             }

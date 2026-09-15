@@ -1,0 +1,5 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}
+{"jsonrpc":"2.0","id":"list","method":"tools/list","params":{}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"discover_project","arguments":{"path":"C:\\Users\\adm\\projects\\AvalonMCP"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_ui_tree","arguments":{"xaml":"<Border xmlns=\"https://github.com/avaloniaui\" Width=\"100\" Height=\"50\"><TextBlock Name=\"Message\" Text=\"Hello\"/></Border>","width":320,"height":200}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"render_ui_snapshot","arguments":{"xaml":"<Border xmlns=\"https://github.com/avaloniaui\" Background=\"Red\" Width=\"100\" Height=\"50\"/>","width":320,"height":200}}}

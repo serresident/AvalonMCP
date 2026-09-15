@@ -90,3 +90,4 @@ C:\Users\adm\projects\AvalonMCP\bin\Debug\net8.0\runtimes\linux-x86\native\libSk
 C:\Users\adm\projects\AvalonMCP\bin\Debug\net8.0\runtimes\win-arm64\native\libSkiaSharp.pdb
 C:\Users\adm\projects\AvalonMCP\bin\Debug\net8.0\runtimes\win-x64\native\libSkiaSharp.pdb
 C:\Users\adm\projects\AvalonMCP\bin\Debug\net8.0\runtimes\win-x86\native\libSkiaSharp.pdb
+C:\Users\adm\projects\AvalonMCP\obj\Debug\net8.0\AvalonMCP.sourcelink.json

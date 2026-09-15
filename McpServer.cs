@@ -12,11 +12,13 @@ namespace AvalonMCP
     {
         private readonly DesignerManager _designerManager;
         private readonly HeadlessTreeDumper _treeDumper;
+        private readonly ProjectInspector _projectInspector;
 
-        public McpServer(DesignerManager designerManager, HeadlessTreeDumper treeDumper)
+        public McpServer(DesignerManager designerManager, HeadlessTreeDumper treeDumper, ProjectInspector? projectInspector = null)
         {
             _designerManager = designerManager;
             _treeDumper = treeDumper;
+            _projectInspector = projectInspector ?? new ProjectInspector();
         }
 
         public async Task StartAsync()
@@ -44,18 +46,25 @@ namespace AvalonMCP
 
         private async Task HandleMessageAsync(string json)
         {
-            var document = JsonNode.Parse(json);
-            if (document == null) return;
+            JsonNode? document;
+            try { document = JsonNode.Parse(json); }
+            catch (JsonException) { SendError(null, -32700, "Parse error"); return; }
+            if (document is not JsonObject request || request["jsonrpc"]?.ToString() != "2.0" || request["method"] is not JsonValue methodValue || !methodValue.TryGetValue<string>(out _))
+            { SendError(null, -32600, "Invalid Request"); return; }
+
+            // Notifications must never receive a response or execute tool calls.
+            if (!request.ContainsKey("id")) return;
 
             var method = document["method"]?.ToString();
-            var id = document["id"]?.ToString();
+            var idNode = document["id"]?.DeepClone();
 
+            if (method == "ping") { SendResponse(new { jsonrpc = "2.0", id = idNode, result = new { } }); return; }
             if (method == "initialize")
             {
                 var response = new
                 {
                     jsonrpc = "2.0",
-                    id = id,
+                    id = idNode,
                     result = new
                     {
                         protocolVersion = "2024-11-05",
@@ -73,7 +82,7 @@ namespace AvalonMCP
                 var response = new
                 {
                     jsonrpc = "2.0",
-                    id = id,
+                    id = idNode,
                     result = new
                     {
                         tools = new object[]
@@ -93,6 +102,30 @@ namespace AvalonMCP
                                     },
                                     required = new[] { "xaml" }
                                 }
+                            },
+                            new
+                            {
+                                name = "discover_project",
+                                description = "Discovers Avalonia projects, solutions and AXAML files under a directory.",
+                                inputSchema = new { type = "object", properties = new { path = new { type = "string" } }, required = new[] { "path" } }
+                            },
+                            new
+                            {
+                                name = "render_ui_snapshot",
+                                description = "Renders standalone AXAML and returns an MCP PNG image.",
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" } }, required = new[] { "xaml" } }
+                            },
+                            new
+                            {
+                                name = "inspect_ui",
+                                description = "Returns a PNG image and the measured visual tree in one call.",
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" } }, required = new[] { "xaml" } }
+                            },
+                            new
+                            {
+                                name = "build_project",
+                                description = "Builds a .sln or .csproj and returns structured output with timeout handling.",
+                                inputSchema = new { type = "object", properties = new { path = new { type = "string" }, timeoutSeconds = new { type = "integer" } }, required = new[] { "path" } }
                             },
                             new
                             {
@@ -118,6 +151,27 @@ namespace AvalonMCP
             {
                 var toolName = document["params"]?["name"]?.ToString();
                 var args = document["params"]?["arguments"];
+                if (args is not JsonObject)
+                { SendError(idNode, -32602, "Tool arguments must be an object."); return; }
+
+                if (toolName == "discover_project" && args != null)
+                {
+                    try { SendToolResult(idNode, _projectInspector.Discover(args["path"]?.ToString() ?? throw new ArgumentException("path is required"))); }
+                    catch (Exception ex) { SendToolResult(idNode, $"Project discovery failed: {ex.Message}", true); }
+                    return;
+                }
+
+                if (toolName == "build_project" && args != null)
+                {
+                    try
+                    {
+                        var path = args["path"]?.ToString() ?? throw new ArgumentException("path is required");
+                        var timeout = args["timeoutSeconds"]?.GetValue<int>() ?? 120;
+                        SendToolResult(idNode, await _projectInspector.BuildAsync(path, timeout, CancellationToken.None));
+                    }
+                    catch (Exception ex) { SendToolResult(idNode, $"Project build failed: {ex.Message}", true); }
+                    return;
+                }
 
                 if (toolName == "get_ui_tree" && args != null)
                 {
@@ -126,12 +180,29 @@ namespace AvalonMCP
                         var xaml = args["xaml"]?.ToString() ?? throw new ArgumentException("xaml is required");
                         var width = args["width"]?.GetValue<double>() ?? 1024;
                         var height = args["height"]?.GetValue<double>() ?? 768;
-                        SendToolResult(id, _treeDumper.Dump(xaml, width, height));
+                        SendToolResult(idNode, await _treeDumper.DumpAsync(xaml, width, height));
                     }
                     catch (Exception ex)
                     {
-                        SendToolResult(id, $"AXAML inspection failed: {ex}", true);
+                        SendToolResult(idNode, $"AXAML inspection failed: {ex}", true);
                     }
+                    return;
+                }
+
+                if ((toolName == "render_ui_snapshot" || toolName == "inspect_ui") && args != null)
+                {
+                    try
+                    {
+                        var xaml = args["xaml"]?.ToString() ?? throw new ArgumentException("xaml is required");
+                        var width = args["width"]?.GetValue<double>() ?? 1024;
+                        var height = args["height"]?.GetValue<double>() ?? 768;
+                        var snapshot = await _treeDumper.InspectAsync(xaml, width, height);
+                        var content = new List<object>();
+                        if (toolName == "inspect_ui") content.Add(new { type = "text", text = snapshot.Tree });
+                        content.Add(new { type = "image", data = snapshot.PngBase64, mimeType = "image/png" });
+                        SendResponse(new { jsonrpc = "2.0", id = idNode, result = new { content, isError = false } });
+                    }
+                    catch (Exception ex) { SendToolResult(idNode, $"AXAML rendering failed: {ex.Message}", true); }
                     return;
                 }
 
@@ -178,7 +249,7 @@ namespace AvalonMCP
                         var response = new
                         {
                             jsonrpc = "2.0",
-                            id = id,
+                            id = idNode,
                             result = new
                             {
                                 content = new[]
@@ -188,10 +259,18 @@ namespace AvalonMCP
                             }
                         };
                         SendResponse(response);
+                        return;
                     }
+                    SendError(idNode, -32602, "assemblyPath and xaml are required.");
+                    return;
                 }
+                SendError(idNode, -32602, $"Unknown tool: {toolName}");
             }
+            else { SendError(idNode, -32601, $"Unknown method: {method}"); }
         }
+
+        private void SendError(JsonNode? id, int code, string message) =>
+            SendResponse(new { jsonrpc = "2.0", id, error = new { code, message } });
 
         private void SendResponse(object response)
         {
@@ -199,7 +278,7 @@ namespace AvalonMCP
             Console.WriteLine(json);
         }
 
-        private void SendToolResult(string? id, string text, bool isError = false)
+        private void SendToolResult(JsonNode? id, string text, bool isError = false)
         {
             SendResponse(new { jsonrpc = "2.0", id, result = new { content = new[] { new { type = "text", text } }, isError } });
         }

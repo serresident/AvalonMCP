@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AvalonMCP")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5e8db80ac1034065c26935db79f8eab477e61bf9")]
 [assembly: System.Reflection.AssemblyProductAttribute("AvalonMCP")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AvalonMCP")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

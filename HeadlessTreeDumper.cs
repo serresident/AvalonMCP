@@ -4,27 +4,58 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
+using Avalonia.Media.Imaging;
+using System.IO;
 
 namespace AvalonMCP;
 
-public sealed class HeadlessTreeDumper
+public sealed class HeadlessTreeDumper : IDisposable
 {
-    private bool _initialized;
+    private readonly HeadlessUnitTestSession _session = HeadlessUnitTestSession.StartNew(typeof(HeadlessTreeDumper));
 
-    public string Dump(string xaml, double width = 1024, double height = 768)
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<Application>()
+        .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+        .UseSkia();
+
+    public async Task<string> DumpAsync(string xaml, double width = 1024, double height = 768)
     {
-        if (!_initialized)
-        {
-            AppBuilder.Configure<Application>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
-            _initialized = true;
-        }
-        if (string.IsNullOrWhiteSpace(xaml)) throw new ArgumentException("xaml must not be empty", nameof(xaml));
+        return (await InspectAsync(xaml, width, height, false)).Tree;
+    }
+
+    public Task<(string Tree, string PngBase64, int Width, int Height)> InspectAsync(string xaml, double width = 1024, double height = 768, bool capture = true)
+    {
+        if (string.IsNullOrWhiteSpace(xaml) || xaml.Length > 1_000_000)
+            throw new ArgumentException("xaml must contain 1 to 1000000 characters.");
+        if (!double.IsFinite(width) || !double.IsFinite(height) || width < 1 || height < 1 || width > 4096 || height > 4096)
+            throw new ArgumentException("Viewport dimensions must be finite and between 1 and 4096.");
+        return _session.Dispatch(() => Render(xaml, width, height, capture), CancellationToken.None);
+    }
+
+    private static (string Tree, string PngBase64, int Width, int Height) Render(string xaml, double width, double height, bool capture)
+    {
         if (AvaloniaRuntimeXamlLoader.Parse(xaml) is not Control root)
             throw new InvalidOperationException("AXAML root must be an Avalonia Control.");
-        root.Measure(new Size(width, height));
-        root.Arrange(new Rect(0, 0, width, height));
-        return JsonSerializer.Serialize(ToNode(root, root), new JsonSerializerOptions { WriteIndented = true });
+        var pixelWidth = Math.Max(1, (int)Math.Round(width));
+        var pixelHeight = Math.Max(1, (int)Math.Round(height));
+        var window = root as Window ?? new Window { Content = root };
+        try
+        {
+            window.Width = pixelWidth;
+            window.Height = pixelHeight;
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var tree = JsonSerializer.Serialize(ToNode(root, window));
+            if (!capture) return (tree, "", pixelWidth, pixelHeight);
+            using var bitmap = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("No rendered frame available.");
+            using var stream = new MemoryStream();
+            bitmap.Save(stream);
+            if (stream.Length == 0) throw new InvalidOperationException("Renderer produced an empty PNG.");
+            return (tree, Convert.ToBase64String(stream.ToArray()), pixelWidth, pixelHeight);
+        }
+        finally { window.Close(); }
     }
+
+    public void Dispose() => _session.Dispose();
 
     private static object ToNode(Visual visual, Visual root)
     {

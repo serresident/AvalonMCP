@@ -92,7 +92,28 @@
 
 ---
 
-## 6. Следующие шаги для следующего агента / итерации
+## 6. Текущее состояние после реализации MVP
+
+Проект переведён на Avalonia 12.0.4 (версии пакетов должны оставаться согласованными).
+Добавлены:
+
+* `HeadlessTreeDumper` на базе `HeadlessUnitTestSession`, с UI dispatcher и `CaptureRenderedFrame()`;
+* рабочие инструменты `get_ui_tree`, `render_ui_snapshot` и `inspect_ui`;
+* настоящий MCP image content (`image/png` с Base64-данными), проверенный smoke-тестом;
+* `ProjectInspector` с инструментами `discover_project` и `build_project`, включая timeout и ограничение stdout/stderr;
+* сохранение исходного типа JSON-RPC `id`;
+* nullable-предупреждения в `DesignerManager` устранены;
+* служебные логи Designer Host направляются в stderr, чтобы не повреждать stdout JSON-RPC.
+
+Проверка:
+
+* `dotnet build --no-restore` — 0 ошибок, 0 предупреждений;
+* stdin/stdout smoke-test: `initialize`, `tools/list`, `discover_project`, `get_ui_tree`, `render_ui_snapshot`;
+* `render_ui_snapshot` возвращает непустой PNG Base64.
+
+Ограничение текущего headless-инструмента: `get_ui_tree` и `render_ui_snapshot` работают с автономным AXAML-контентом. Для полноценного проекта с `x:Class`, DI, ViewModel и ресурсами нужен следующий изолированный project-adapter процесс.
+
+## 7. Следующие шаги для следующего агента / итерации
 1. Добавить пакет `Avalonia.Headless` в `AvalonMCP.csproj`.
 2. Создать сервис `HeadlessTreeDumper.cs` с логикой из `Avalonia.Diagnostics`:
    * Инициализация Headless-приложения.

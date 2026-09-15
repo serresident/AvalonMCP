@@ -8,7 +8,7 @@ class Program
     static async Task Main(string[] args)
     {
         using var designerManager = new DesignerManager();
-        var treeDumper = new HeadlessTreeDumper();
+        using var treeDumper = new HeadlessTreeDumper();
         
         try
         {

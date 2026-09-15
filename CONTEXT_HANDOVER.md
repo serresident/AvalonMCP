@@ -98,6 +98,9 @@
 Добавлены:
 
 * `HeadlessTreeDumper` на базе `HeadlessUnitTestSession`, с UI dispatcher и `CaptureRenderedFrame()`;
+* подключён `Avalonia.Themes.Fluent` (12.0.4) для корректной стилизации стандартных контролов (Button, TextBox, CheckBox и др.);
+* поддержана смена темы (`theme: "light" | "dark"`) в инструментах `get_ui_tree`, `render_ui_snapshot` и `inspect_ui`;
+* дерево узлов обогащено критическими свойствами верстки: `text`, `isVisible`, `isEnabled`, `margin`, `horizontalAlignment`, `verticalAlignment`, `absoluteBounds`;
 * рабочие инструменты `get_ui_tree`, `render_ui_snapshot` и `inspect_ui`;
 * настоящий MCP image content (`image/png` с Base64-данными), проверенный smoke-тестом;
 * `ProjectInspector` с инструментами `discover_project` и `build_project`, включая timeout и ограничение stdout/stderr;
@@ -107,18 +110,13 @@
 
 Проверка:
 
-* `dotnet build --no-restore` — 0 ошибок, 0 предупреждений;
-* stdin/stdout smoke-test: `initialize`, `tools/list`, `discover_project`, `get_ui_tree`, `render_ui_snapshot`;
-* `render_ui_snapshot` возвращает непустой PNG Base64.
-
-Ограничение текущего headless-инструмента: `get_ui_tree` и `render_ui_snapshot` работают с автономным AXAML-контентом. Для полноценного проекта с `x:Class`, DI, ViewModel и ресурсами нужен следующий изолированный project-adapter процесс.
+* `dotnet build` — 0 ошибок, 0 предупреждений;
+* `smoke-test.ps1`: 5 responses, numeric id, tree, PNG signature, dimensions and red center pixel — PASS.
 
 ## 7. Следующие шаги для следующего агента / итерации
-1. Добавить пакет `Avalonia.Headless` в `AvalonMCP.csproj`.
-2. Создать сервис `HeadlessTreeDumper.cs` с логикой из `Avalonia.Diagnostics`:
-   * Инициализация Headless-приложения.
-   * Загрузка XAML через `AvaloniaRuntimeXamlLoader.Load`.
-   * Вызов `Measure(new Size(1024, 768))` и `Arrange(new Rect(0, 0, 1024, 768))`.
-   * Рекурсивный сбор дерева контролов в JSON-формат (свойство `Bounds`).
-3. Зарегистрировать инструменты `get_ui_tree` и `inspect_ui` в [`McpServer.cs`](file:///c:/Users/adm/projects/AvalonMCP/McpServer.cs).
-4. Протестировать на реальном XAML-файле.
+1. **Поддержка реальных проектов с `x:Class`**:
+   * Разработка механизма загрузки сборок проекта (`AssemblyLoadContext`), чтобы рендерить пользовательские `UserControl` с code-behind, ресурсами и конвертерами.
+2. **Конфигурация подключения MCP-сервера**:
+   * Подготовить готовые шаблоны конфигурации для добавления `AvalonMCP` в клиентские среды (Cursor, Antigravity, Claude Desktop, Rider MCP plugin).
+3. **Live Watcher (Hot Reload)**:
+   * Добавить опциональный режим отслеживания изменений `.axaml` на диске с автоматическим обновлением превью.

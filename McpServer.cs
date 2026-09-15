@@ -98,7 +98,9 @@ namespace AvalonMCP
                                     {
                                         xaml = new { type = "string", description = "AXAML content to inspect." },
                                         width = new { type = "number", description = "Viewport width (default 1024)." },
-                                        height = new { type = "number", description = "Viewport height (default 768)." }
+                                        height = new { type = "number", description = "Viewport height (default 768)." },
+                                        theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." },
+                                        assemblyPath = new { type = "string", description = "Optional path to compiled project .dll for resolving custom controls, styles, and x:Class." }
                                     },
                                     required = new[] { "xaml" }
                                 }
@@ -112,14 +114,14 @@ namespace AvalonMCP
                             new
                             {
                                 name = "render_ui_snapshot",
-                                description = "Renders standalone AXAML and returns an MCP PNG image.",
-                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" } }, required = new[] { "xaml" } }
+                                description = "Renders standalone or project-backed AXAML and returns an MCP PNG image.",
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." } }, required = new[] { "xaml" } }
                             },
                             new
                             {
                                 name = "inspect_ui",
                                 description = "Returns a PNG image and the measured visual tree in one call.",
-                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" } }, required = new[] { "xaml" } }
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." } }, required = new[] { "xaml" } }
                             },
                             new
                             {
@@ -180,7 +182,9 @@ namespace AvalonMCP
                         var xaml = args["xaml"]?.ToString() ?? throw new ArgumentException("xaml is required");
                         var width = args["width"]?.GetValue<double>() ?? 1024;
                         var height = args["height"]?.GetValue<double>() ?? 768;
-                        SendToolResult(idNode, await _treeDumper.DumpAsync(xaml, width, height));
+                        var theme = args["theme"]?.ToString();
+                        var assemblyPath = args["assemblyPath"]?.ToString();
+                        SendToolResult(idNode, await _treeDumper.DumpAsync(xaml, width, height, theme, assemblyPath));
                     }
                     catch (Exception ex)
                     {
@@ -196,7 +200,9 @@ namespace AvalonMCP
                         var xaml = args["xaml"]?.ToString() ?? throw new ArgumentException("xaml is required");
                         var width = args["width"]?.GetValue<double>() ?? 1024;
                         var height = args["height"]?.GetValue<double>() ?? 768;
-                        var snapshot = await _treeDumper.InspectAsync(xaml, width, height);
+                        var theme = args["theme"]?.ToString();
+                        var assemblyPath = args["assemblyPath"]?.ToString();
+                        var snapshot = await _treeDumper.InspectAsync(xaml, width, height, true, theme, assemblyPath);
                         var content = new List<object>();
                         if (toolName == "inspect_ui") content.Add(new { type = "text", text = snapshot.Tree });
                         content.Add(new { type = "image", data = snapshot.PngBase64, mimeType = "image/png" });

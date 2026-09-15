@@ -1,0 +1,13 @@
+# .NET build artifacts
+[Bb]in/
+[Oo]bj/
+
+# Rider / Visual Studio
+.idea/
+.vs/
+*.user
+*.suo
+
+# OS files
+Thumbs.db
+[Dd]esktop.ini

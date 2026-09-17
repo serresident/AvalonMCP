@@ -7,6 +7,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        Environment.SetEnvironmentVariable("AVALONIA_TELEMETRY_OPTOUT", "1");
         using var designerManager = new DesignerManager();
         using var treeDumper = new HeadlessTreeDumper();
         

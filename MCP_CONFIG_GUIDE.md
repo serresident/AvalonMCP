@@ -59,8 +59,9 @@
 
 | Инструмент | Параметры | Описание |
 |---|---|---|
-| `inspect_ui` | `xaml`, `width`, `height`, `theme`, `assemblyPath` | **Главный инструмент**: одновременно возвращает вычисленное Visual Tree (JSON) с координатами, отступами и текстом, а также PNG-скриншот. |
-| `render_ui_snapshot` | `xaml`, `width`, `height`, `theme`, `assemblyPath` | Рендерит AXAML и возвращает изображение `image/png` в формате MCP. |
+| `lint_ui` | `xaml`, `width`, `height`, `theme`, `assemblyPath` | **Самый быстрый инструмент (5-15 мс)**: мгновенно проверяет верстку на схлопывание (0x0), обрезку текста, наложение элементов и выравнивание без генерации картинок. |
+| `inspect_ui` | `xaml`, `width`, `height`, `theme`, `assemblyPath`, `annotateErrors` | Возвращает вычисленное Visual Tree (JSON) с диагностикой верстки и аннотированный PNG-скриншот с красными маркерами ошибок. |
+| `render_ui_snapshot` | `xaml`, `width`, `height`, `theme`, `assemblyPath`, `annotateErrors` | Рендерит AXAML и возвращает изображение `image/png` в формате MCP с опциональным оверлеем ошибок. |
 | `get_ui_tree` | `xaml`, `width`, `height`, `theme`, `assemblyPath` | Возвращает структурированное дерево элементов с `bounds`, `margin`, `classes` и `text`. |
 | `discover_project` | `path` | Находит `.sln`, `.csproj` и все `.axaml` файлы в указанной директории. |
 | `build_project` | `path`, `timeoutSeconds` | Запускает компиляцию целевого проекта и возвращает структурированный отчет об ошибках. |

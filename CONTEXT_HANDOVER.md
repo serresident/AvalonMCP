@@ -101,22 +101,27 @@
 * подключён `Avalonia.Themes.Fluent` (12.0.4) для корректной стилизации стандартных контролов (Button, TextBox, CheckBox и др.);
 * поддержана смена темы (`theme: "light" | "dark"`) в инструментах `get_ui_tree`, `render_ui_snapshot` и `inspect_ui`;
 * дерево узлов обогащено критическими свойствами верстки: `text`, `isVisible`, `isEnabled`, `margin`, `horizontalAlignment`, `verticalAlignment`, `absoluteBounds`;
-* рабочие инструменты `get_ui_tree`, `render_ui_snapshot` и `inspect_ui`;
-* настоящий MCP image content (`image/png` с Base64-данными), проверенный smoke-тестом;
-* `ProjectInspector` с инструментами `discover_project` и `build_project`, включая timeout и ограничение stdout/stderr;
-* сохранение исходного типа JSON-RPC `id`;
-* nullable-предупреждения в `DesignerManager` устранены;
-* служебные логи Designer Host направляются в stderr, чтобы не повреждать stdout JSON-RPC.
+* `LayoutDiagnosticEngine`: алгоритмический аудит верстки после `Measure()` / `Arrange()`:
+  * детекция схлопывания `ZERO_BOUNDS` (0x0 размеры значимых контролов с рекомендациями);
+  * детекция обрезки текста `TEXT_CLIPPED` через `FormattedText` (расчет нестесненного размера текста);
+  * детекция коллизий в Grid `UNINTENDED_OVERLAP` (ошибочное размещение в одной ячейке);
+  * детекция перекоса отступов `ASYMMETRIC_MARGIN` и вылета за экран `VIEWPORT_OVERFLOW`.
+* `DebugOverlayRenderer`: отрисовка полупрозрачных цветных маркеров и бейджей ошибок на скриншоте через `SkiaSharp`.
+* Новый инструмент **`lint_ui`**: мгновенный вердикт по верстке за 5–15 мс в чистой памяти без затрат токенов на картинки.
+* Расширенные инструменты `inspect_ui` и `render_ui_snapshot` с параметром `annotateErrors` (по умолчанию `true`).
+* `ProjectInspector` с инструментами `discover_project` и `build_project`.
+* `MCP_CONFIG_GUIDE.md`: руководство по подключению сервера к Cursor, Claude и Antigravity.
 
 Проверка:
 
 * `dotnet build` — 0 ошибок, 0 предупреждений;
-* `smoke-test.ps1`: 5 responses, numeric id, tree, PNG signature, dimensions and red center pixel — PASS.
+* `smoke-test.ps1` — PASS (обратная совместимость);
+* `linter-test.ps1` — PASS (тестирование чистой верстки, ZERO_BOUNDS, TEXT_CLIPPED, UNINTENDED_OVERLAP и оверлея).
 
-## 7. Следующие шаги для следующего агента / итерации
-1. **Поддержка реальных проектов с `x:Class`**:
-   * Разработка механизма загрузки сборок проекта (`AssemblyLoadContext`), чтобы рендерить пользовательские `UserControl` с code-behind, ресурсами и конвертерами.
-2. **Конфигурация подключения MCP-сервера**:
-   * Подготовить готовые шаблоны конфигурации для добавления `AvalonMCP` в клиентские среды (Cursor, Antigravity, Claude Desktop, Rider MCP plugin).
-3. **Live Watcher (Hot Reload)**:
-   * Добавить опциональный режим отслеживания изменений `.axaml` на диске с автоматическим обновлением превью.
+## 7. Рекомендованный Fast-Loop рабочий процесс для ИИ-агентов
+1. **Быстрая правка (вслепую, 10 мс/шаг)**:
+   * Агент правит `.axaml` и вызывает `lint_ui`.
+   * При наличии ошибок (`Passed: false`) агент мгновенно видит имя контрола, тип ошибки и подсказку по исправлению.
+   * Агент правит XAML до получения `Passed: true`.
+2. **Финальная проверка (с картинкой)**:
+   * Агент вызывает `inspect_ui` один раз в конце для проверки визуальной эстетики и чтения точного дерева.

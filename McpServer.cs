@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace AvalonMCP
@@ -107,6 +108,24 @@ namespace AvalonMCP
                             },
                             new
                             {
+                                name = "lint_ui",
+                                description = "Performs instant in-memory layout diagnostics on AXAML without rendering screenshots. Detects collapsed 0x0 elements, text clipping, grid overlap collisions, and alignment bugs.",
+                                inputSchema = new
+                                {
+                                    type = "object",
+                                    properties = new
+                                    {
+                                        xaml = new { type = "string", description = "AXAML content to lint." },
+                                        width = new { type = "number", description = "Viewport width (default 1024)." },
+                                        height = new { type = "number", description = "Viewport height (default 768)." },
+                                        theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." },
+                                        assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." }
+                                    },
+                                    required = new[] { "xaml" }
+                                }
+                            },
+                            new
+                            {
                                 name = "discover_project",
                                 description = "Discovers Avalonia projects, solutions and AXAML files under a directory.",
                                 inputSchema = new { type = "object", properties = new { path = new { type = "string" } }, required = new[] { "path" } }
@@ -114,14 +133,14 @@ namespace AvalonMCP
                             new
                             {
                                 name = "render_ui_snapshot",
-                                description = "Renders standalone or project-backed AXAML and returns an MCP PNG image.",
-                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." } }, required = new[] { "xaml" } }
+                                description = "Renders standalone or project-backed AXAML and returns an MCP PNG image. Optionally draws debug bounding boxes on detected layout issues.",
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." }, annotateErrors = new { type = "boolean", description = "Draw colored bounding boxes on detected layout issues (default true)." } }, required = new[] { "xaml" } }
                             },
                             new
                             {
                                 name = "inspect_ui",
-                                description = "Returns a PNG image and the measured visual tree in one call.",
-                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." } }, required = new[] { "xaml" } }
+                                description = "Returns an annotated PNG image and the measured visual tree with layout diagnostics in one call.",
+                                inputSchema = new { type = "object", properties = new { xaml = new { type = "string" }, width = new { type = "number" }, height = new { type = "number" }, theme = new { type = "string", description = "Optional theme variant ('light' or 'dark')." }, assemblyPath = new { type = "string", description = "Optional path to compiled project .dll." }, annotateErrors = new { type = "boolean", description = "Draw colored bounding boxes on detected layout issues (default true)." } }, required = new[] { "xaml" } }
                             },
                             new
                             {
@@ -175,6 +194,31 @@ namespace AvalonMCP
                     return;
                 }
 
+                if (toolName == "lint_ui" && args != null)
+                {
+                    try
+                    {
+                        var xaml = args["xaml"]?.ToString() ?? throw new ArgumentException("xaml is required");
+                        var width = args["width"]?.GetValue<double>() ?? 1024;
+                        var height = args["height"]?.GetValue<double>() ?? 768;
+                        var theme = args["theme"]?.ToString();
+                        var assemblyPath = args["assemblyPath"]?.ToString();
+
+                        var report = await _treeDumper.LintAsync(xaml, width, height, theme, assemblyPath);
+                        var reportJson = JsonSerializer.Serialize(report, new JsonSerializerOptions 
+                        { 
+                            WriteIndented = true,
+                            NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals 
+                        });
+                        SendToolResult(idNode, reportJson, isError: !report.Passed);
+                    }
+                    catch (Exception ex)
+                    {
+                        SendToolResult(idNode, $"AXAML linting failed: {ex.Message}", true);
+                    }
+                    return;
+                }
+
                 if (toolName == "get_ui_tree" && args != null)
                 {
                     try
@@ -202,9 +246,19 @@ namespace AvalonMCP
                         var height = args["height"]?.GetValue<double>() ?? 768;
                         var theme = args["theme"]?.ToString();
                         var assemblyPath = args["assemblyPath"]?.ToString();
-                        var snapshot = await _treeDumper.InspectAsync(xaml, width, height, true, theme, assemblyPath);
+                        var annotateErrors = args["annotateErrors"]?.GetValue<bool>() ?? true;
+
+                        var snapshot = await _treeDumper.InspectAsync(xaml, width, height, true, theme, assemblyPath, annotateErrors);
                         var content = new List<object>();
-                        if (toolName == "inspect_ui") content.Add(new { type = "text", text = snapshot.Tree });
+                        if (toolName == "inspect_ui")
+                        {
+                            var combined = new
+                            {
+                                tree = JsonNode.Parse(snapshot.Tree),
+                                diagnostics = snapshot.Report
+                            };
+                            content.Add(new { type = "text", text = JsonSerializer.Serialize(combined) });
+                        }
                         content.Add(new { type = "image", data = snapshot.PngBase64, mimeType = "image/png" });
                         SendResponse(new { jsonrpc = "2.0", id = idNode, result = new { content, isError = false } });
                     }
